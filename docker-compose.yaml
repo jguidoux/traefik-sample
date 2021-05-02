@@ -1,0 +1,52 @@
+version: "3.3"
+services:
+    web:
+        image: nginx
+        volumes:
+            - ./nginx/pages:/usr/share/nginx/html/
+        networks:
+            - test
+        labels:
+            traefik.enable: true
+            traefik.http.routers.nginx-test.rule: PathPrefix(`/nginx`) &&  HeadersRegexp(`Cookie`, `maintenance-override=true`)
+            traefik.http.routers.nginx-test.entryPoints: insecure 
+            traefik.http.routers.nginx-test.middlewares: test-stripprefix
+            traefik.http.middlewares.test-stripprefix.stripprefix.prefixes: /nginx  
+            traefik.http.middlewares.test-stripprefix.stripprefix.forceslash: true
+    traefik:    
+        image: traefik:latest
+        restart: unless-stopped
+        ports:
+            - 80:80
+            - 443:443
+            - 8080:8080
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - ./traefik/:/etc/traefik/
+        networks:
+            - test
+        labels:
+            traefik.enable: true
+            traefik.http.routers.traefik.entrypoints: insecure
+            traefik.http.routers.traefik.rule: PathPrefix(`/api`) || PathPrefix(`/dashboard`)
+            traefik.http.routers.traefik.service: api@internal
+            traefik.http.routers.traefik.middlewares: auth
+            traefik.http.middlewares.auth.basicauth.users: admin:$$2y$$05$$1Awq7l/Kobxiy7bo7CCQA.iWThUC0Yrj1d.4qmy089kXyVzXRrEEy
+    
+    maintenance:
+        image: nginx
+        volumes:
+            - ./maintenance/pages:/usr/share/nginx/html
+        networks:
+            - test
+        labels:
+            traefik.enable: true
+            traefik.http.routers.maintenance.rule: PathPrefix(`/nginx`)
+            traefik.http.routers.maintenance.entryPoints: insecure 
+            traefik.http.routers.maintenance.middlewares: maintenance-stripprefix
+            traefik.http.middlewares.maintenance-stripprefix.stripprefix.prefixes: /nginx  
+            traefik.http.middlewares.maintenance-stripprefix.stripprefix.forceslash: true
+            
+networks:
+    test:
+        driver: bridge
